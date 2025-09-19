@@ -15,15 +15,9 @@ import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import { AuthContext } from "../context/AuthContext";
 
-/**
- * Groups page (improved)
- * - Defensive parsing of various API shapes
- * - Clearer error messages for 401/403
- * - Refresh button
- */
 export default function Groups() {
   const navigate = useNavigate();
-  const { isAuthenticated } = useContext(AuthContext);
+  const { isAuthenticated, user } = useContext(AuthContext);
 
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -37,17 +31,11 @@ export default function Groups() {
   }, [isAuthenticated, navigate]);
 
   const parseGroupsFromResponse = (respData) => {
-    // respData could be:
-    //  - an array -> return it
-    //  - { groups: [...] } -> return groups
-    //  - { data: [...] } -> return data
-    //  - { someKey: [...] } -> return first array found
     if (!respData) return [];
     if (Array.isArray(respData)) return respData;
     if (respData.groups && Array.isArray(respData.groups)) return respData.groups;
     if (respData.data && Array.isArray(respData.data)) return respData.data;
 
-    // find first array property if any
     if (typeof respData === "object") {
       for (const v of Object.values(respData)) {
         if (Array.isArray(v)) return v;
@@ -68,9 +56,7 @@ export default function Groups() {
       if (err.response && err.response.status === 401) {
         setError("Not authenticated. Please login again.");
       } else if (err.response && err.response.status === 403) {
-        setError(
-          "Access forbidden: your account may not be a member of any groups. Create a group or ask an admin to add you."
-        );
+        setError("Access forbidden: Create a group or ask an admin to add you.");
       } else {
         setError("Could not load groups. Is backend running on http://localhost:8080?");
       }
@@ -91,7 +77,14 @@ export default function Groups() {
   return (
     <Container maxWidth="lg" sx={{ mt: 6 }}>
       <Box sx={{ display: "flex", justifyContent: "space-between", mb: 3 }}>
-        <Typography variant="h4">Groups</Typography>
+        <Box>
+          <Typography variant="h4">Groups</Typography>
+          {user && (
+            <Typography variant="subtitle1" color="text.secondary">
+              Welcome, {user.name}
+            </Typography>
+          )}
+        </Box>
 
         <Box sx={{ display: "flex", gap: 1 }}>
           <Button variant="outlined" onClick={handleRefresh} disabled={loading}>
@@ -123,7 +116,7 @@ export default function Groups() {
 
       <Grid container spacing={2} sx={{ mt: 1 }}>
         {groups.map((g) => {
-          const id = g.id ?? g.groupId ?? g._id ?? g.id?.toString?.() ?? "unknown";
+          const id = g.id ?? g.groupId ?? g._id ?? "unknown";
           const name = g.name ?? g.title ?? g.groupName ?? "Unnamed group";
           const desc = g.description ?? g.desc ?? g.note ?? "";
           const membersCount =

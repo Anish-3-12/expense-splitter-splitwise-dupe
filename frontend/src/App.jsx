@@ -31,10 +31,10 @@ function ProtectedRoute({ children }) {
 }
 
 /**
- * TopNav component — uses hooks so must be rendered inside Router (it will be).
+ * TopNav component
  */
 function TopNavInner() {
-  const { isAuthenticated, logout } = useContext(AuthContext);
+  const { isAuthenticated, logout, user } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -45,6 +45,7 @@ function TopNavInner() {
   return (
     <AppBar position="static">
       <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
+        {/* Left side: logo + nav links */}
         <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
           <Typography
             variant="h6"
@@ -60,7 +61,14 @@ function TopNavInner() {
           </Button>
         </Box>
 
-        <Box>
+        {/* Right side: user info + auth buttons */}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          {isAuthenticated && user && (
+            <Typography variant="body1" sx={{ color: "inherit" }}>
+              {`Hi, ${user.name}`}
+            </Typography>
+          )}
+
           {!isAuthenticated ? (
             <>
               <Button color="inherit" component={Link} to="/login">
@@ -82,8 +90,7 @@ function TopNavInner() {
 }
 
 /**
- * TopNav wrapper to allow using useNavigate inside TopNavInner while keeping App.jsx tidy.
- * We render TopNavInner inside BrowserRouter so hooks work.
+ * TopNav wrapper
  */
 function TopNav() {
   return <TopNavInner />;

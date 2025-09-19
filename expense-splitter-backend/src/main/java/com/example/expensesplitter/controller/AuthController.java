@@ -7,6 +7,7 @@ import com.example.expensesplitter.dto.UserProfile;
 import com.example.expensesplitter.entity.User;
 import com.example.expensesplitter.security.CurrentUser;
 import com.example.expensesplitter.service.AuthService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -28,11 +29,8 @@ public class AuthController {
      * Returns: UserProfile of the newly registered user
      */
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody RegisterRequest req) {
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest req) {
         try {
-            if (req.getName() == null || req.getEmail() == null || req.getPassword() == null) {
-                return ResponseEntity.badRequest().body("Missing fields: name, email, and password are required");
-            }
             User created = authService.register(req.getName(), req.getEmail(), req.getPassword());
             UserProfile profile = authService.getProfile(created);
             return ResponseEntity.ok(profile);
@@ -50,11 +48,8 @@ public class AuthController {
      * Returns: { "token": "...", "tokenType": "Bearer" }
      */
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest req) {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest req) {
         try {
-            if (req.getEmail() == null || req.getPassword() == null) {
-                return ResponseEntity.badRequest().body("Missing fields: email and password are required");
-            }
             String token = authService.login(req.getEmail(), req.getPassword());
             return ResponseEntity.ok(new AuthResponse(token));
         } catch (IllegalArgumentException e) {

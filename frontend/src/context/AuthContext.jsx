@@ -41,12 +41,12 @@ export function AuthProvider({ children }) {
     fetchProfile();
   };
 
-  // Register: simply redirect to login, or auto-login if backend returns token
+  // Register
   const register = async (name, email, password) => {
     return api.post("/auth/register", { name, email, password });
   };
 
-  // Logout: clear storage + reset state
+  // Logout
   const logout = () => {
     localStorage.removeItem("token");
     delete api.defaults.headers.common["Authorization"];
