@@ -1,334 +1,634 @@
 import React, { useEffect, useState, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  Container,
   Box,
+  Grid,
+  Card,
+  CardContent,
   Typography,
   Button,
   CircularProgress,
   Alert,
-  Card,
-  CardContent,
-  Grid,
-  List,
-  ListItem,
-  ListItemText,
-  Divider,
+  Tabs,
+  Tab,
+  Avatar,
+  Chip,
+  IconButton,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   TextField,
+  MenuItem,
+  Stack,
+  Breadcrumbs,
+  Link as MuiLink,
+  Divider,
+  Paper,
+  Tooltip,
 } from "@mui/material";
+import {
+  ArrowBack as ArrowBackIcon,
+  Add as AddIcon,
+  ReceiptLong as ReceiptIcon,
+  CameraAlt as CameraAltIcon,
+  AccountBalanceWallet as WalletIcon,
+  PersonAdd as PersonAddIcon,
+  Insights as InsightsIcon,
+  CheckCircle as CheckCircleIcon,
+  Schedule as ScheduleIcon,
+  Category as CategoryIcon,
+} from "@mui/icons-material";
 import api from "../api/axios";
 import { AuthContext } from "../context/AuthContext";
+import PageHeader from "../components/PageHeader";
+import BalanceIndicator from "../components/BalanceIndicator";
+import EmptyState from "../components/EmptyState";
+import StatusBadge from "../components/StatusBadge";
+import { formatINR } from "../utils/formatters";
 
 export default function GroupDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { isAuthenticated } = useContext(AuthContext);
+  const { user } = useContext(AuthContext);
 
+  const [tab, setTab] = useState(0);
   const [group, setGroup] = useState(null);
   const [expenses, setExpenses] = useState([]);
   const [balances, setBalances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Add member state
-  const [newMemberEmail, setNewMemberEmail] = useState("");
-  const [addMemberError, setAddMemberError] = useState(null);
-  const [addMemberSuccess, setAddMemberSuccess] = useState(null);
+  // Add Member
+  const [openAddMember, setOpenAddMember] = useState(false);
+  const [memberEmail, setMemberEmail] = useState("");
   const [addingMember, setAddingMember] = useState(false);
+  const [memberError, setMemberError] = useState("");
 
-  // Settlement dialog state
-  const [settleOpen, setSettleOpen] = useState(false);
-  const [fromUser, setFromUser] = useState("");
-  const [toUser, setToUser] = useState("");
-  const [amount, setAmount] = useState("");
-  const [settleLoading, setSettleLoading] = useState(false);
-  const [settleError, setSettleError] = useState(null);
-  const [settleSuccess, setSettleSuccess] = useState(null);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      navigate("/login");
-      return;
-    }
-    fetchAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, isAuthenticated]);
+  // Settlement Dialog
+  const [openSettle, setOpenSettle] = useState(false);
+  const [fromUserId, setFromUserId] = useState("");
+  const [toUserId, setToUserId] = useState("");
+  const [settleAmount, setSettleAmount] = useState("");
+  const [settling, setSettling] = useState(false);
+  const [settleError, setSettleError] = useState("");
 
   const fetchAll = async () => {
-    setLoading(true);
-    setError(null);
     try {
-      // Group meta
-      const resp = await api.get(`/groups/${id}`);
-      setGroup(resp.data);
+      setLoading(true);
+      setError(null);
 
-      // Expenses
-      try {
-        const respExp = await api.get(`/groups/${id}/expenses`);
-        setExpenses(Array.isArray(respExp.data) ? respExp.data : []);
-      } catch {
-        setExpenses([]);
-      }
+      const [groupRes, expRes, balRes] = await Promise.all([
+        api.get(`/groups/${id}`),
+        api.get(`/groups/${id}/expenses`).catch(() => ({ data: [] })),
+        api.get(`/groups/${id}/balances`).catch(() => ({ data: [] })),
+      ]);
 
-      // Balances
-      try {
-        const respBal = await api.get(`/groups/${id}/balances`);
-        setBalances(Array.isArray(respBal.data) ? respBal.data : []);
-      } catch {
-        setBalances([]);
-      }
+      setGroup(groupRes.data);
+      setExpenses(Array.isArray(expRes.data) ? expRes.data : []);
+      setBalances(Array.isArray(balRes.data) ? balRes.data : []);
     } catch (err) {
-      console.error("Failed to load group details:", err);
-      setError("Failed to load group details. Is backend running on :8080?");
+      console.error("Failed to load group:", err);
+      setError(err?.response?.data?.message || "Failed to load group details.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Add member by email
+  useEffect(() => {
+    fetchAll();
+  }, [id]);
+
   const handleAddMember = async (e) => {
     e.preventDefault();
-    if (!newMemberEmail.trim()) return;
-    setAddMemberError(null);
-    setAddMemberSuccess(null);
-    setAddingMember(true);
+    if (!memberEmail.trim()) return;
     try {
-      await api.post(`/groups/${id}/members`, {
-        email: newMemberEmail.trim(),
-        role: "MEMBER",
-      });
-      setAddMemberSuccess(`Added ${newMemberEmail}`);
-      setNewMemberEmail("");
-      await fetchAll();
+      setAddingMember(true);
+      setMemberError("");
+      await api.post(`/groups/${id}/members`, { email: memberEmail.trim(), role: "MEMBER" });
+      setMemberEmail("");
+      setOpenAddMember(false);
+      fetchAll();
     } catch (err) {
       console.error("Add member error:", err);
-      if (err.response && err.response.data) {
-        setAddMemberError(
-          typeof err.response.data === "string"
-            ? err.response.data
-            : err.response.data.message || "Failed to add member"
-        );
-      } else {
-        setAddMemberError("Network or server error.");
-      }
+      setMemberError(err?.response?.data?.message || "Failed to add member. Check email address.");
     } finally {
       setAddingMember(false);
     }
   };
 
-  // Settlement handlers
-  const openSettleDialog = () => {
-    setSettleError(null);
-    setSettleSuccess(null);
-    setFromUser("");
-    setToUser("");
-    setAmount("");
-    setSettleOpen(true);
-  };
-  const closeSettleDialog = () => setSettleOpen(false);
-
-  const submitSettlement = async () => {
-    setSettleError(null);
-    setSettleSuccess(null);
-
-    if (!fromUser || !toUser || !amount) {
-      setSettleError("Please fill all fields.");
+  const handleRecordSettlement = async (e) => {
+    e.preventDefault();
+    if (!fromUserId || !toUserId || !settleAmount || Number(settleAmount) <= 0) {
+      setSettleError("Please specify payer, recipient, and a positive amount.");
+      return;
+    }
+    if (fromUserId === toUserId) {
+      setSettleError("Payer and recipient must be different members.");
       return;
     }
 
-    setSettleLoading(true);
     try {
-      const payload = {
-        fromUserId: fromUser,
-        toUserId: toUser,
-        amount: Number(amount),
-      };
-      await api.post(`/groups/${id}/settlements`, payload);
-      setSettleSuccess("Settlement recorded.");
-      await fetchAll();
-      setTimeout(() => setSettleOpen(false), 700);
+      setSettling(true);
+      setSettleError("");
+      await api.post(`/groups/${id}/settlements`, {
+        fromUserId: Number(fromUserId),
+        toUserId: Number(toUserId),
+        amount: Number(settleAmount),
+      });
+      setOpenSettle(false);
+      setFromUserId("");
+      setToUserId("");
+      setSettleAmount("");
+      fetchAll();
     } catch (err) {
       console.error("Settlement error:", err);
-      setSettleError(
-        err.response?.data?.message ||
-          err.response?.data ||
-          "Failed to record settlement"
-      );
+      setSettleError(err?.response?.data?.message || "Failed to record settlement.");
     } finally {
-      setSettleLoading(false);
+      setSettling(false);
     }
+  };
+
+  const openQuickSettle = (debtorId, creditorId, amount) => {
+    setFromUserId(debtorId ? String(debtorId) : "");
+    setToUserId(creditorId ? String(creditorId) : "");
+    setSettleAmount(amount ? String(Math.abs(amount).toFixed(2)) : "");
+    setSettleError("");
+    setOpenSettle(true);
   };
 
   if (loading) {
     return (
-      <Container maxWidth="lg" sx={{ mt: 8, textAlign: "center" }}>
+      <Box sx={{ display: "flex", justifyContent: "center", py: 10 }}>
         <CircularProgress />
-      </Container>
+      </Box>
     );
   }
 
-  if (error) {
+  if (error || !group) {
     return (
-      <Container maxWidth="lg" sx={{ mt: 6 }}>
-        <Alert severity="error">{error}</Alert>
-      </Container>
+      <Box sx={{ maxWidth: 600, mx: "auto", py: 4 }}>
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error || "Group not found"}
+        </Alert>
+        <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate("/groups")}>
+          Back to Groups
+        </Button>
+      </Box>
     );
   }
 
-  const prettyMoney = (v) =>
-    typeof v === "number" ? v.toFixed(2) : String(v ?? "");
+  const members = group.members || [];
+  const totalGroupExpense = expenses.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
 
-  // helper to safely get display name from various DTO shapes
-  const memberDisplayName = (m) =>
-    m?.name ?? m?.userName ?? m?.user?.name ?? m?.email ?? `User ${m?.id ?? m?.userId ?? ""}`;
+  // Current user's balance in this group
+  const myBalanceObj = balances.find((b) => b.userId === user?.id || b.email === user?.email);
+  const myNetBalance = myBalanceObj ? Number(myBalanceObj.netBalance || 0) : 0;
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 6 }}>
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 3 }}>
-        <Typography variant="h4">{group?.name ?? `Group ${id}`}</Typography>
+    <Box>
+      {/* Breadcrumbs */}
+      <Breadcrumbs sx={{ mb: 2 }}>
+        <MuiLink
+          component="button"
+          underline="hover"
+          color="inherit"
+          onClick={() => navigate("/groups")}
+          sx={{ display: "flex", alignItems: "center", gap: 0.5, cursor: "pointer" }}
+        >
+          <ArrowBackIcon fontSize="small" /> Groups
+        </MuiLink>
+        <Typography color="text.primary">{group.name}</Typography>
+      </Breadcrumbs>
 
+      {/* Header */}
+      <Box
+        sx={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 2,
+          mb: 3,
+        }}
+      >
         <Box>
-          <Button variant="outlined" sx={{ mr: 1 }} onClick={() => navigate("/groups")}>
-            Back
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 0.5 }}>
+            <Typography variant="h4" sx={{ fontWeight: 700 }}>
+              {group.name}
+            </Typography>
+            <Chip
+              size="small"
+              label={`${members.length} members`}
+              sx={{ fontWeight: 600, bgcolor: "slate.100" }}
+            />
+          </Box>
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            Total Group Spending: <strong>₹{totalGroupExpense.toFixed(2)}</strong> • Created{" "}
+            {group.createdAt ? new Date(group.createdAt).toLocaleDateString() : "recently"}
+          </Typography>
+        </Box>
+
+        <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+          <Button
+            variant="outlined"
+            startIcon={<CameraAltIcon />}
+            onClick={() => navigate(`/receipt-scanner?groupId=${id}`)}
+          >
+            Scan Receipt
           </Button>
-          <Button variant="contained" sx={{ mr: 1 }} onClick={() => navigate(`/groups/${id}/add-expense`)}>
+          <Button
+            variant="outlined"
+            startIcon={<WalletIcon />}
+            onClick={() => {
+              setFromUserId("");
+              setToUserId("");
+              setSettleAmount("");
+              setOpenSettle(true);
+            }}
+          >
+            Settle Up
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => navigate(`/groups/${id}/add-expense`)}
+          >
             Add Expense
-          </Button>
-          <Button variant="contained" onClick={() => navigate(`/groups/${id}/settlements`)}>
-            Settlements
           </Button>
         </Box>
       </Box>
 
-      <Grid container spacing={2}>
-        {/* Members */}
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Members
+      {/* Group Net Status Card */}
+      <Card sx={{ mb: 3, bgcolor: "background.paper", border: "1px solid", borderColor: "divider" }}>
+        <CardContent sx={{ p: 2.5 }}>
+          <Grid container spacing={2} alignItems="center" sx={{ width: "100%" }}>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <Typography variant="caption" sx={{ color: "text.secondary", textTransform: "uppercase", fontWeight: 600 }}>
+                Your Balance in this Group
               </Typography>
-              <Divider sx={{ mb: 1 }} />
-              <List dense>
-                {group?.members?.length ? (
-                  group.members.map((m) => (
-                    <ListItem key={m.id ?? m.userId}>
-                      <ListItemText primary={memberDisplayName(m)} secondary={m.email ?? ""} />
-                    </ListItem>
-                  ))
-                ) : (
-                  <ListItem>
-                    <ListItemText primary="No members yet" />
-                  </ListItem>
-                )}
-              </List>
-
-              {/* Add member form (only if owner) */}
-              {group?.ownerId && (
-                <>
-                  <Divider sx={{ my: 2 }} />
-                  <Typography variant="subtitle1">Add Member</Typography>
-                  {addMemberError && <Alert severity="error" sx={{ my: 1 }}>{addMemberError}</Alert>}
-                  {addMemberSuccess && <Alert severity="success" sx={{ my: 1 }}>{addMemberSuccess}</Alert>}
-                  <Box component="form" onSubmit={handleAddMember} sx={{ display: "flex", gap: 1, mt: 1 }}>
-                    <TextField size="small" label="User email" value={newMemberEmail} onChange={(e) => setNewMemberEmail(e.target.value)} fullWidth />
-                    <Button type="submit" variant="contained" disabled={addingMember}>
-                      {addingMember ? "Adding…" : "Add"}
-                    </Button>
-                  </Box>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Balances */}
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Balances
-              </Typography>
-              <Divider sx={{ mb: 1 }} />
-              {balances.length === 0 ? (
-                <Typography>No balances</Typography>
-              ) : (
-                <List dense>
-                  {balances.map((b) => {
-                    // Use backend's netBalance if present, fall back to other shapes
-                    const bal = Number(b?.netBalance ?? b?.balance ?? b?.amount ?? 0);
-                    const name = b?.name ?? b?.userName ?? `User ${b?.userId ?? ""}`;
-                    return (
-                      <ListItem key={b.userId ?? b.id ?? name}>
-                        <ListItemText
-                          primary={name}
-                          secondary={
-                            bal > 0
-                              ? `is owed ${prettyMoney(bal)}`
-                              : bal < 0
-                              ? `owes ${prettyMoney(Math.abs(bal))}`
-                              : "settled"
-                          }
-                        />
-                      </ListItem>
-                    );
-                  })}
-                </List>
-              )}
-              <Box sx={{ mt: 2 }}>
-                <Button size="small" onClick={openSettleDialog}>Record settlement</Button>
+              <Box sx={{ mt: 0.5 }}>
+                <BalanceIndicator amount={myNetBalance} size="large" />
               </Box>
-            </CardContent>
-          </Card>
-        </Grid>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <Typography variant="caption" sx={{ color: "text.secondary", textTransform: "uppercase", fontWeight: 600 }}>
+                Total Recorded Expenses
+              </Typography>
+              <Typography variant="h6" sx={{ fontWeight: 700, mt: 0.5 }}>
+                {formatINR(totalGroupExpense)} ({expenses.length} bills)
+              </Typography>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }} sx={{ textAlign: { sm: "right" } }}>
+              <Button
+                variant="text"
+                size="small"
+                startIcon={<InsightsIcon />}
+                onClick={() => navigate(`/analytics?groupId=${id}`)}
+              >
+                View Deep Insights & Trends
+              </Button>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
 
-        {/* Expenses */}
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>Expenses</Typography>
-              <Divider sx={{ mb: 1 }} />
-              {expenses.length === 0 ? (
-                <Typography>No expenses yet</Typography>
-              ) : (
-                <List dense>
-                  {expenses.map((e) => {
-                    const title = e.note ?? e.description ?? `Expense ${e.id}`;
-                    const amt = typeof e.amount === "number" ? e.amount : Number(e.amount || 0);
-                    const payer = e.payerName ?? e.paidByName ?? `Payer: ${e.payerId ?? ""}`;
-                    return (
-                      <ListItem key={e.id}>
-                        <ListItemText primary={`${title} — ${prettyMoney(amt)}`} secondary={payer} />
-                      </ListItem>
-                    );
-                  })}
-                </List>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+      {/* Tabs */}
+      <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
+        <Tabs value={tab} onChange={(e, val) => setTab(val)}>
+          <Tab label={`Expenses (${expenses.length})`} />
+          <Tab label={`Balances (${balances.length})`} />
+          <Tab label={`Members (${members.length})`} />
+        </Tabs>
+      </Box>
 
-      {/* Settlement dialog */}
-      <Dialog open={settleOpen} onClose={closeSettleDialog}>
-        <DialogTitle>Record Settlement</DialogTitle>
-        <DialogContent sx={{ minWidth: 360, display: "flex", flexDirection: "column", gap: 2 }}>
-          {settleError && <Alert severity="error">{settleError}</Alert>}
-          {settleSuccess && <Alert severity="success">{settleSuccess}</Alert>}
+      {/* Tab 0: Expenses */}
+      {tab === 0 && (
+        <Box>
+          {expenses.length === 0 ? (
+            <EmptyState
+              icon={ReceiptIcon}
+              title="No expenses logged yet"
+              description="Add the first expense or scan a physical receipt with AI to split costs."
+              actionLabel="Add Expense"
+              onAction={() => navigate(`/groups/${id}/add-expense`)}
+            />
+          ) : (
+            <Stack spacing={1.5}>
+              {expenses.map((exp) => {
+                const expAmount = Number(exp.amount || 0);
+                const payerName = exp.payerName || members.find((m) => (m.userId || m.id) === exp.payerId)?.name || `User #${exp.payerId}`;
+                const category = exp.categoryName || "General";
+                return (
+                  <Paper
+                    key={exp.id}
+                    elevation={0}
+                    sx={{
+                      p: 2,
+                      borderRadius: 2,
+                      border: "1px solid",
+                      borderColor: "divider",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      transition: "all 0.15s ease",
+                      "&:hover": { borderColor: "primary.main", bgcolor: "slate.50" },
+                    }}
+                  >
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0, flexGrow: 1, mr: 2 }}>
+                      <Box
+                        sx={{
+                          width: 44,
+                          height: 44,
+                          flexShrink: 0,
+                          borderRadius: 2,
+                          bgcolor: "emerald.50",
+                          color: "emerald.600",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <ReceiptIcon fontSize="small" />
+                      </Box>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 600, wordBreak: "break-word" }}>
+                          {exp.description || exp.note || `Expense #${exp.id}`}
+                        </Typography>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.25, flexWrap: "wrap" }}>
+                          <Chip
+                            size="small"
+                            label={category}
+                            icon={<CategoryIcon sx={{ fontSize: 13 }} />}
+                            sx={{ height: 20, fontSize: "0.7rem", bgcolor: "slate.100", flexShrink: 0 }}
+                          />
+                          <Typography variant="caption" sx={{ color: "text.secondary", whiteSpace: "nowrap" }}>
+                            Paid by <strong>{payerName}</strong> • {exp.splitType || "EQUAL"} split
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Box>
 
-          <TextField label="From user id" value={fromUser} onChange={(e) => setFromUser(e.target.value)} fullWidth />
-          <TextField label="To user id" value={toUser} onChange={(e) => setToUser(e.target.value)} fullWidth />
-          <TextField label="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} type="number" inputProps={{ step: "0.01", min: "0" }} fullWidth />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={closeSettleDialog}>Cancel</Button>
-          <Button onClick={submitSettlement} disabled={settleLoading}>{settleLoading ? "Saving…" : "Save"}</Button>
-        </DialogActions>
+                    <Box sx={{ textAlign: "right", flexShrink: 0, ml: "auto" }}>
+                      <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        {formatINR(expAmount)}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: "text.secondary", whiteSpace: "nowrap" }}>
+                        {exp.createdAt ? new Date(exp.createdAt).toLocaleDateString() : ""}
+                      </Typography>
+                    </Box>
+                  </Paper>
+                );
+              })}
+            </Stack>
+          )}
+        </Box>
+      )}
+
+      {/* Tab 1: Balances */}
+      {tab === 1 && (
+        <Box>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+              Group Net Balances
+            </Typography>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<WalletIcon />}
+              onClick={() => {
+                setFromUserId("");
+                setToUserId("");
+                setSettleAmount("");
+                setOpenSettle(true);
+              }}
+            >
+              Record Settlement
+            </Button>
+          </Box>
+
+          <Grid container spacing={2} sx={{ width: "100%" }}>
+            {balances.map((b) => {
+              const net = Number(b.netBalance || b.balance || 0);
+              const name = b.name || b.userName || `User #${b.userId}`;
+              const isCurrentUser = b.userId === user?.id || b.email === user?.email;
+
+              return (
+                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={b.userId || name}>
+                  <Card sx={{ border: "1px solid", borderColor: isCurrentUser ? "primary.main" : "divider" }}>
+                    <CardContent sx={{ p: 2.5 }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1.5 }}>
+                        <Avatar sx={{ width: 36, height: 36, bgcolor: "slate.200", color: "slate.800" }}>
+                          {name.charAt(0).toUpperCase()}
+                        </Avatar>
+                        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 600, noWrap: true }}>
+                            {name} {isCurrentUser && "(You)"}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: "text.secondary", noWrap: true }}>
+                            {b.email || `Member ID: ${b.userId}`}
+                          </Typography>
+                        </Box>
+                      </Box>
+
+                      <Divider sx={{ my: 1.5 }} />
+
+                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                          Status
+                        </Typography>
+                        <BalanceIndicator amount={net} />
+                      </Box>
+
+                      {net < 0 && (
+                        <Box sx={{ mt: 2 }}>
+                          <Button
+                            fullWidth
+                            size="small"
+                            variant="outlined"
+                            color="warning"
+                            onClick={() => openQuickSettle(b.userId, null, Math.abs(net))}
+                          >
+                            Record Settle Up (₹{Math.abs(net).toFixed(2)})
+                          </Button>
+                        </Box>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+            })}
+          </Grid>
+        </Box>
+      )}
+
+      {/* Tab 2: Members */}
+      {tab === 2 && (
+        <Box>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+              Group Members ({members.length})
+            </Typography>
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<PersonAddIcon />}
+              onClick={() => setOpenAddMember(true)}
+            >
+              Add Member
+            </Button>
+          </Box>
+
+          <Grid container spacing={2} sx={{ width: "100%" }}>
+            {members.map((m) => {
+              const displayName = m.name || m.userName || m.user?.name || `User #${m.id || m.userId}`;
+              const email = m.email || m.user?.email || "";
+              const isOwner = group.ownerId && (group.ownerId === m.id || group.ownerId === m.userId);
+
+              return (
+                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={m.id || m.userId || email}>
+                  <Card sx={{ border: "1px solid", borderColor: "divider" }}>
+                    <CardContent sx={{ p: 2 }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                        <Avatar sx={{ bgcolor: "primary.50", color: "primary.main", fontWeight: 600 }}>
+                          {displayName.charAt(0).toUpperCase()}
+                        </Avatar>
+                        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 600, noWrap: true }}>
+                            {displayName}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: "text.secondary", noWrap: true }}>
+                            {email}
+                          </Typography>
+                        </Box>
+                        {isOwner && (
+                          <Chip size="small" label="Admin" color="primary" variant="outlined" sx={{ height: 22, fontSize: "0.68rem" }} />
+                        )}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+            })}
+          </Grid>
+        </Box>
+      )}
+
+      {/* Add Member Dialog */}
+      <Dialog open={openAddMember} onClose={() => setOpenAddMember(false)} maxWidth="xs" fullWidth>
+        <form onSubmit={handleAddMember}>
+          <DialogTitle sx={{ fontWeight: 700 }}>Add Member to Group</DialogTitle>
+          <DialogContent>
+            {memberError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {memberError}
+              </Alert>
+            )}
+            <Typography variant="body2" sx={{ color: "text.secondary", mb: 2 }}>
+              Enter the registered email of the person you want to invite.
+            </Typography>
+            <TextField
+              autoFocus
+              fullWidth
+              label="User Email"
+              placeholder="friend@example.com"
+              type="email"
+              value={memberEmail}
+              onChange={(e) => setMemberEmail(e.target.value)}
+              required
+              margin="dense"
+            />
+          </DialogContent>
+          <DialogActions sx={{ p: 2.5, pt: 0 }}>
+            <Button onClick={() => setOpenAddMember(false)} color="inherit" disabled={addingMember}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="contained" disabled={addingMember || !memberEmail.trim()}>
+              {addingMember ? <CircularProgress size={20} /> : "Add Member"}
+            </Button>
+          </DialogActions>
+        </form>
       </Dialog>
-    </Container>
+
+      {/* Record Settlement Dialog */}
+      <Dialog open={openSettle} onClose={() => setOpenSettle(false)} maxWidth="xs" fullWidth>
+        <form onSubmit={handleRecordSettlement}>
+          <DialogTitle sx={{ fontWeight: 700 }}>Record Settlement</DialogTitle>
+          <DialogContent>
+            {settleError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {settleError}
+              </Alert>
+            )}
+            <Typography variant="body2" sx={{ color: "text.secondary", mb: 2 }}>
+              Record a direct payment made between two members to balance debts.
+            </Typography>
+
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <TextField
+                select
+                fullWidth
+                label="Payer (Who paid / Settler)"
+                value={fromUserId}
+                onChange={(e) => setFromUserId(e.target.value)}
+                required
+              >
+                {members.map((m) => {
+                  const mId = m.userId || m.id;
+                  const mName = m.name || m.userName || m.email || `User #${mId}`;
+                  return (
+                    <MenuItem key={mId} value={String(mId)}>
+                      {mName}
+                    </MenuItem>
+                  );
+                })}
+              </TextField>
+
+              <TextField
+                select
+                fullWidth
+                label="Recipient (Who received)"
+                value={toUserId}
+                onChange={(e) => setToUserId(e.target.value)}
+                required
+              >
+                {members.map((m) => {
+                  const mId = m.userId || m.id;
+                  const mName = m.name || m.userName || m.email || `User #${mId}`;
+                  return (
+                    <MenuItem key={mId} value={String(mId)}>
+                      {mName}
+                    </MenuItem>
+                  );
+                })}
+              </TextField>
+
+              <TextField
+                fullWidth
+                label="Amount (₹)"
+                placeholder="0.00"
+                type="number"
+                inputProps={{ step: "0.01", min: "0.01" }}
+                value={settleAmount}
+                onChange={(e) => setSettleAmount(e.target.value)}
+                required
+              />
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ p: 2.5, pt: 0 }}>
+            <Button onClick={() => setOpenSettle(false)} color="inherit" disabled={settling}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={settling || !fromUserId || !toUserId || fromUserId === toUserId || !settleAmount || Number(settleAmount) <= 0}
+            >
+              {settling ? <CircularProgress size={20} /> : "Record Settlement"}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
+    </Box>
   );
 }

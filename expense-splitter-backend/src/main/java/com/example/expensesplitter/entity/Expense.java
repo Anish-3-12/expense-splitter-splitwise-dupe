@@ -46,13 +46,21 @@ public class Expense {
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id")
+    private ExpenseCategory category;
+
     @OneToMany(mappedBy = "expense", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private Set<ExpenseShare> shares = new HashSet<>();
+
+    @OneToMany(mappedBy = "expense", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private java.util.List<ExpenseItem> items = new java.util.ArrayList<>();
 
     public Expense() {}
 
     // getters/setters
     public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
     public Group getGroup() { return group; }
     public void setGroup(Group group) { this.group = group; }
     public User getCreatedBy() { return createdBy; }
@@ -68,11 +76,19 @@ public class Expense {
     public String getNote() { return note; }
     public void setNote(String note) { this.note = note; }
     public Instant getCreatedAt() { return createdAt; }
+    public ExpenseCategory getCategory() { return category; }
+    public void setCategory(ExpenseCategory category) { this.category = category; }
     public Set<ExpenseShare> getShares() { return shares; }
     public void setShares(Set<ExpenseShare> shares) { this.shares = shares; }
     public void addShare(ExpenseShare share) {
         shares.add(share);
         share.setExpense(this);
+    }
+    public java.util.List<ExpenseItem> getItems() { return items; }
+    public void setItems(java.util.List<ExpenseItem> items) { this.items = items; }
+    public void addItem(ExpenseItem item) {
+        items.add(item);
+        item.setExpense(this);
     }
 }
 

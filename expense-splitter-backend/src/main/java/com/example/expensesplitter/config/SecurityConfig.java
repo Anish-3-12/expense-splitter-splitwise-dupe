@@ -50,18 +50,13 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // enable CORS (uses the CorsConfigurationSource bean above)
-                .cors()
-                .and()
-                // stateless session management for JWT-based API
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                // disable CSRF for API
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/ping", "/api/categories").permitAll()
                         .anyRequest().authenticated()
                 )
-                // no form login or http basic for JWT API
                 .httpBasic(httpBasic -> httpBasic.disable())
                 .formLogin(form -> form.disable());
 

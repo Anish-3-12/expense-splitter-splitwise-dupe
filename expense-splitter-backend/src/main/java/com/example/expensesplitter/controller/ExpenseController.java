@@ -46,10 +46,18 @@ public class ExpenseController {
         dto.setGroupId(saved.getGroup().getId());
         dto.setCreatedById(saved.getCreatedBy().getId());
         dto.setPayerId(saved.getPayer().getId());
+        if (saved.getPayer() != null) {
+            dto.setPayerName(saved.getPayer().getName());
+        }
         dto.setAmount(saved.getAmount());
         dto.setCurrency(saved.getCurrency());
         dto.setSplitType(saved.getSplitType());
         dto.setNote(saved.getNote());
+        if (saved.getCategory() != null) {
+            dto.setCategoryId(saved.getCategory().getId());
+            dto.setCategoryName(saved.getCategory().getName());
+            dto.setCategoryIcon(saved.getCategory().getIcon());
+        }
         dto.setCreatedAt(saved.getCreatedAt());
 
         List<ExpenseDto.ShareDto> shareDtos = new java.util.ArrayList<>();

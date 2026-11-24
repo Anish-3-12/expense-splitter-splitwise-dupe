@@ -107,5 +107,13 @@ public class GroupService {
 
         return new GroupDetailsDto(group.getId(), group.getName(), group.getOwner().getId(), group.getCreatedAt(), members);
     }
+
+    /**
+     * Get member count for a group.
+     */
+    @Transactional(readOnly = true)
+    public int getGroupMemberCount(Long groupId) {
+        return membershipRepository.findByGroup_Id(groupId).size();
+    }
 }
 
