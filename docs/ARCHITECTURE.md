@@ -143,15 +143,15 @@ flowchart TD
     Doc["Uploaded Document / Prompt"] --> CheckCur{"Detected Currency?"}
     CheckCur -->|"INR (₹)"| AllowReview["Permit Full Review & Ledger Posting"]
     CheckCur -->|"USD / EUR / GBP"| FlagForeign["Preserve Original Currency & Amounts"]
-    
+
     FlagForeign --> ReviewUI["Display Document in Review Screen"]
     ReviewUI --> Warning["Render 'Foreign Currency Ledger Restriction' Banner"]
     Warning --> DisableConfirm["Disable 'Confirm & Create Expense' Button"]
-    
+
     DisableConfirm --> ApiGuard{"Direct API POST /confirm?"}
     ApiGuard -->|"Bypass UI"| Reject422["Spring Boot Returns HTTP 422 Unprocessable Entity"]
     Reject422 --> NoLedgerChange["Ledger Untouched / Balance Unaffected"]
-    
+
     AllowReview --> ConfirmBtn["User Clicks 'Confirm & Create Expense'"]
     ConfirmBtn --> PostLedger["Spring Boot Creates Expense in INR"]
 ```
@@ -164,13 +164,13 @@ stateDiagram-v2
     [*] --> UPLOADED : Receipt Upload
     UPLOADED --> PROCESSING : Extract Triggered
     PROCESSING --> EXTRACTED : OCR + LLM Parsing
-    
+
     state EXTRACTED {
         [*] --> InvariantCheck
         InvariantCheck --> RECONCILED : sum(items)==subtotal && subtotal+tax==total
         InvariantCheck --> DISCREPANCY_DETECTED : Math Mismatch or Ambiguity
     }
-    
+
     EXTRACTED --> REVIEWED : User Edits / Confirms Items
     REVIEWED --> CONFIRMED : Confirm Transaction (Pessimistic Lock)
     CONFIRMED --> [*] : Immutable Expense Created
@@ -183,14 +183,14 @@ stateDiagram-v2
 flowchart TD
     Req["GET /api/groups/{id}/analytics"] --> QueryExp["Query All Group Expenses"]
     QueryExp --> CountCheck{"Expense Count >= 5?"}
-    
+
     CountCheck -->|"No (< 5)"| Insufficient["Return Empty Anomaly List\nAlgorithm: None"]
     CountCheck -->|"Yes (5 to 19)"| IQR["Execute Statistical IQR Baseline\nIQR = Q3 - Q1\nThreshold = Q3 + 1.5 * IQR"]
     CountCheck -->|"Yes (>= 20)"| IF["Execute Scikit-Learn Isolation Forest\nContamination = 0.05\nFit Amount + Category Vectors"]
-    
+
     IQR --> FlagIQR["Identify Expenses > Threshold\nLabel: Review Suggestion"]
     IF --> FlagIF["Identify Outlier Inliers (-1)\nLabel: Review Suggestion"]
-    
+
     FlagIQR --> Resp["Return GroupAnalyticsDto\nDynamic Algorithm Label"]
     FlagIF --> Resp
 ```
@@ -227,11 +227,11 @@ flowchart TD
     JWT --> ValToken{"Token Valid?"}
     ValToken -->|"No"| Err401["HTTP 401 Unauthorized"]
     ValToken -->|"Yes"| ExtractUser["Extract User Entity"]
-    
+
     ExtractUser --> CheckRoute{"Route requires Group Scope?"}
     CheckRoute -->|"No (e.g. /me/dashboard)"| Allow["Dispatch to Service"]
     CheckRoute -->|"Yes (/api/groups/{id}/*)"| FindMember["Check group_members Table"]
-    
+
     FindMember --> IsMember{"Is User active Member of Group?"}
     IsMember -->|"No"| Err403["HTTP 403 Forbidden"]
     IsMember -->|"Yes"| Allow
@@ -249,7 +249,7 @@ flowchart LR
         FastAPILocal["FastAPI (Python 3.13, 8000)"]
         SBLocal["Spring Boot (Java 21, 8080)"]
         ViteLocal["Vite Dev Server (Node, 5173)"]
-        
+
         ViteLocal --> SBLocal
         SBLocal --> MySQLLocal
         SBLocal --> FastAPILocal
@@ -262,7 +262,7 @@ flowchart LR
         DC_AI["ai-service Container"]
         DC_Backend["backend Container"]
         DC_Frontend["frontend Container (Nginx)"]
-        
+
         DC_Frontend --> DC_Backend
         DC_Backend --> DC_MySQL
         DC_Backend --> DC_AI

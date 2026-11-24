@@ -1,8 +1,8 @@
 # UI/UX Modernization & Design System Specifications
 
-**Design Standard**: Modern Financial SaaS (Stripe / Mercury aesthetic)  
-**Theme Engine**: Material UI 7 + Custom Tokens (`frontend/src/theme/theme.js`)  
-**Chart Engine**: Zero-Dependency Interactive SVG Visualizations  
+**Design Standard**: Modern Financial SaaS (Stripe / Mercury aesthetic)
+**Theme Engine**: Material UI 7 + Custom Tokens (`frontend/src/theme/theme.js`)
+**Chart Engine**: Zero-Dependency Interactive SVG Visualizations
 
 ---
 

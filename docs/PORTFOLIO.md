@@ -17,8 +17,8 @@ This document prepares software engineers to present Splitwise AI in high-stakes
 
 ## 2. 60-Second Elevator Pitch
 
-> *"Splitwise AI is a full-stack, AI-augmented expense management system built with Spring Boot, Python FastAPI, MySQL, and React. While traditional expense splitters rely on tedious manual entry, Splitwise AI introduces two major autonomous capabilities: natural-language split interpretation and receipt vision reconciliation using local, open-source LLMs and OCR. 
-> 
+> *"Splitwise AI is a full-stack, AI-augmented expense management system built with Spring Boot, Python FastAPI, MySQL, and React. While traditional expense splitters rely on tedious manual entry, Splitwise AI introduces two major autonomous capabilities: natural-language split interpretation and receipt vision reconciliation using local, open-source LLMs and OCR.
+>
 > Crucially, rather than treating AI output as blindly trusted truth, I architected the platform with a strict deterministic financial boundary: Spring Boot serves as the ultimate authority, enforcing integer minor-unit arithmetic, row-level pessimistic concurrency locking, and zero-sum balance conservation. Even if the AI hallucinates, the system guarantees that all shares sum exactly to the penny and no foreign currency corrupts the ledger."*
 
 ---
@@ -27,16 +27,16 @@ This document prepares software engineers to present Splitwise AI in high-stakes
 
 ### Q1: Why did you split the architecture into a Spring Boot backend and a Python FastAPI service instead of doing everything in one language?
 **Answer**:
-*"I designed this around domain boundaries and ecosystem strengths. 
-Financial ledgers demand strict transactional integrity, compile-time type safety, robust relational ORM tooling, and enterprise security frameworks—areas where Java and Spring Boot 3 excel. 
-Conversely, computer vision, OCR, and open-source machine learning ecosystems are vastly superior and more idiomatic in Python (OpenCV, PyTesseract, Scikit-Learn, Pydantic). 
+*"I designed this around domain boundaries and ecosystem strengths.
+Financial ledgers demand strict transactional integrity, compile-time type safety, robust relational ORM tooling, and enterprise security frameworks—areas where Java and Spring Boot 3 excel.
+Conversely, computer vision, OCR, and open-source machine learning ecosystems are vastly superior and more idiomatic in Python (OpenCV, PyTesseract, Scikit-Learn, Pydantic).
 Separating them into a Spring Boot financial core and a Python AI microservice keeps the financial ledger isolated from resource-intensive machine learning workloads, enables independent scaling, and secures inter-service communication via pre-shared secrets (`X-Internal-Secret`)."*
 
 ---
 
 ### Q2: How do you prevent floating-point rounding errors in financial calculations?
 **Answer**:
-*"In financial systems, binary floating-point types (`float` and `double` in IEEE 754) produce catastrophic rounding artifacts because numbers like 0.1 cannot be represented exactly in binary. 
+*"In financial systems, binary floating-point types (`float` and `double` in IEEE 754) produce catastrophic rounding artifacts because numbers like 0.1 cannot be represented exactly in binary.
 In Splitwise AI:
 1. In the database, all monetary values are stored as fixed-point `DECIMAL(10, 2)`.
 2. In Java, all splitting calculations use exact integer minor units (paise) represented as `long` or `BigDecimal` with explicit rounding modes (`RoundingMode.HALF_UP`).
@@ -109,7 +109,7 @@ Whenever an operation targets a group route `/api/groups/{groupId}/*`:
 
 ### Q9: Why did you choose Material UI v7 Grid with the `size` property over legacy `xs`/`md`?
 **Answer**:
-*"In Material UI v7, the Grid component was updated to align with the CSS Grid specification. The legacy `<Grid item xs={12} md={6}>` syntax was deprecated in favor of `<Grid size={{ xs: 12, md: 6 }}>`. 
+*"In Material UI v7, the Grid component was updated to align with the CSS Grid specification. The legacy `<Grid item xs={12} md={6}>` syntax was deprecated in favor of `<Grid size={{ xs: 12, md: 6 }}>`.
 Using deprecated props in MUI v7 causes layout bugs where cards collapse to minimal intrinsic widths on mobile screens or fail to render side-by-side on desktop.
 We modernized every Grid instance across Dashboard, Settlements, AddExpense, and ReceiptScanner, ensuring 100% full-width cards on mobile and an optimal 5/12 + 7/12 layout on desktop."*
 

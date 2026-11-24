@@ -1,8 +1,8 @@
 # REST API Reference Documentation
 
-**Base URL**: `http://localhost:8080/api`  
-**Authentication**: Bearer Token (`Authorization: Bearer <jwt_token>`)  
-**Format**: JSON  
+**Base URL**: `http://localhost:8080/api`
+**Authentication**: Bearer Token (`Authorization: Bearer <jwt_token>`)
+**Format**: JSON
 
 ---
 

@@ -318,7 +318,7 @@ async def run_audit():
                     headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
                 });
                 const d = await res.json();
-                
+
                 // Dispatch event or populate React fiber state
                 const root = document.querySelector('#root');
                 // Use DOM inputs if rendered or trigger state transition

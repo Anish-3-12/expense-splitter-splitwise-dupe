@@ -1,7 +1,7 @@
 # Database Architecture & Migration Specifications
 
-**Database Engine**: MySQL 8.0  
-**Migration Tool**: Flyway (Sequential Versioned Migrations `V1` – `V5`)  
+**Database Engine**: MySQL 8.0
+**Migration Tool**: Flyway (Sequential Versioned Migrations `V1` – `V5`)
 
 ---
 

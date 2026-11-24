@@ -17,7 +17,7 @@ def run_tests():
         "email": qa_email,
         "password": qa_pass
     })
-    
+
     login_resp = requests.post(f"{BASE_URL}/auth/login", json={
         "email": qa_email,
         "password": qa_pass
@@ -25,7 +25,7 @@ def run_tests():
     if login_resp.status_code != 200:
         print(f"FAILED: Login failed: {login_resp.status_code} {login_resp.text}")
         return False
-    
+
     login_data = login_resp.json()
     token = login_data["token"]
     headers = {"Authorization": f"Bearer {token}"}
@@ -136,7 +136,7 @@ def run_tests():
     print(f"=== INVARIANT VERIFICATION ===")
     print(f"Total expenses created in QA group: {len(exp_list)} (Expected 0)")
     assert len(exp_list) == 0, f"Expected 0 expenses, found {len(exp_list)}"
-    
+
     net_balances = [b.get("netBalance", 0.0) for b in bal_list]
     print(f"Group Net Balances: {net_balances} (Expected all 0.00)")
     for b in net_balances:

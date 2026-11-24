@@ -1,8 +1,8 @@
 # Application Security & Privacy Architecture
 
-**Standard**: Institutional Financial Security & Zero-Leakage AI Governance  
-**Backend Security**: Spring Security 6 (Stateless JWT)  
-**AI Security**: Air-Gapped Local Inference (Zero Data Exfiltration)  
+**Standard**: Institutional Financial Security & Zero-Leakage AI Governance
+**Backend Security**: Spring Security 6 (Stateless JWT)
+**AI Security**: Air-Gapped Local Inference (Zero Data Exfiltration)
 
 ---
 

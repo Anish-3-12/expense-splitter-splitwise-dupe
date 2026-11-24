@@ -233,7 +233,7 @@ def detect_currency(raw_text: str, model_currency: Optional[str] = None) -> Tupl
     Never assumes INR when receipts clearly contain other currency signs.
     """
     text = raw_text or ""
-    
+
     # Check for symbols and explicit country/currency tokens
     has_dollar = "$" in text or bool(re.search(r"\b(USD|Austin|Texas|TX|CA|NY|WA|FL|USA)\b", text, re.I))
     has_euro = "€" in text or bool(re.search(r"\b(EUR|Euro|Euros)\b", text, re.I))
@@ -248,7 +248,7 @@ def detect_currency(raw_text: str, model_currency: Optional[str] = None) -> Tupl
         return "GBP", "£", "Detected '£' (Pound) currency symbol in OCR text"
     elif has_rupee and not has_dollar:
         return "INR", "₹", "Detected '₹' / INR currency symbol in OCR text"
-    
+
     # If model suggested a valid currency that aligns with symbols
     if model_currency:
         mc = model_currency.upper().strip()
