@@ -1,172 +1,128 @@
-import React, { useState, useContext } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Container,
   Box,
+  Card,
+  CardContent,
   Typography,
   TextField,
   Button,
   Alert,
   CircularProgress,
+  Stack,
+  Breadcrumbs,
+  Link as MuiLink,
 } from "@mui/material";
+import { ArrowBack as ArrowBackIcon, GroupAdd as GroupAddIcon } from "@mui/icons-material";
 import api from "../api/axios";
-import { AuthContext } from "../context/AuthContext";
+import PageHeader from "../components/PageHeader";
 
-/**
- * Create Group page
- * POST /api/groups
- * Body: { name, description? }
- *
- * On success:
- *  - If backend returns created group object with id -> navigate to /groups/{id}
- *  - Else navigate to /groups
- */
 export default function CreateGroup() {
   const navigate = useNavigate();
-  const { isAuthenticated } = useContext(AuthContext);
-
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [successMsg, setSuccessMsg] = useState(null);
-
-  // Basic guard: if not authenticated, go to login
-  if (!isAuthenticated) {
-    navigate("/login");
-    return null;
-  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
-    setSuccessMsg(null);
-
     if (!name.trim()) {
-      setError("Group name is required.");
+      setError("Please provide a group name.");
       return;
     }
 
-    setLoading(true);
     try {
-      const payload = { name: name.trim() };
-      if (description.trim()) payload.description = description.trim();
-
-      const resp = await api.post("/groups", payload);
-
-      // Try to find created group id from response
-      const body = resp && resp.data ? resp.data : null;
-      let createdId = null;
-
-      if (!body) {
-        // fallback: no body, just go to list
-        navigate("/groups");
-        return;
-      }
-
-      // If backend returns GroupDto or object with id
-      if (typeof body === "object" && (body.id || body.groupId || bodyIdFromBody(body))) {
-        createdId = body.id ?? body.groupId ?? bodyIdFromBody(body);
-      } else if (typeof body === "string") {
-        // backend sometimes returns "User registered with id=123" style; try to parse number
-        const m = body.match(/id=(\d+)/);
-        if (m) createdId = m[1];
-      }
-
-      setSuccessMsg("Group created.");
-
-      // Redirect to group details if id available, else to groups list
-      setTimeout(() => {
-        if (createdId) {
-          navigate(`/groups/${createdId}`);
-        } else {
-          navigate("/groups");
-        }
-      }, 600);
-    } catch (err) {
-      console.error("Create group error:", err);
-      if (err.response && err.response.data) {
-        setError(
-          typeof err.response.data === "string"
-            ? err.response.data
-            : err.response.data.message || "Failed to create group"
-        );
+      setLoading(true);
+      setError(null);
+      const res = await api.post("/groups", { name: name.trim() });
+      if (res.data?.id) {
+        navigate(`/groups/${res.data.id}`);
       } else {
-        setError("Network or server error. Is backend running on :8080?");
+        navigate("/groups");
       }
+    } catch (err) {
+      console.error("Failed to create group:", err);
+      setError(err?.response?.data?.message || err?.response?.data || "Failed to create group.");
     } finally {
       setLoading(false);
     }
   };
 
-  // helper: scan object for an id-like property (flexible)
-  const bodyIdFromBody = (obj) => {
-    try {
-      if (!obj || typeof obj !== "object") return null;
-      for (const k of Object.keys(obj)) {
-        if (/id$/i.test(k) && (typeof obj[k] === "number" || (typeof obj[k] === "string" && /^\d+$/.test(obj[k])))) {
-          return obj[k];
-        }
-      }
-    } catch (e) {
-      // ignore
-    }
-    return null;
-  };
-
   return (
-    <Container maxWidth="sm" sx={{ mt: 6 }}>
-      <Box sx={{ mb: 3, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <Typography variant="h5">Create Group</Typography>
-        <Button variant="text" onClick={() => navigate("/groups")}>
-          Back to groups
-        </Button>
-      </Box>
+    <Box sx={{ maxWidth: 640, mx: "auto" }}>
+      <Breadcrumbs sx={{ mb: 2 }}>
+        <MuiLink
+          component="button"
+          underline="hover"
+          color="inherit"
+          onClick={() => navigate("/groups")}
+          sx={{ display: "flex", alignItems: "center", gap: 0.5, cursor: "pointer" }}
+        >
+          <ArrowBackIcon fontSize="small" /> Back to Groups
+        </MuiLink>
+        <Typography color="text.primary">New Group</Typography>
+      </Breadcrumbs>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
+      <PageHeader
+        title="Create a New Group"
+        subtitle="Start tracking shared living expenses, trips, dinner bills, or project costs."
+      />
 
-      {successMsg && (
-        <Alert severity="success" sx={{ mb: 2 }}>
-          {successMsg}
-        </Alert>
-      )}
+      <Card>
+        <CardContent sx={{ p: 4 }}>
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
 
-      <Box
-        component="form"
-        onSubmit={handleSubmit}
-        sx={{ display: "flex", flexDirection: "column", gap: 2 }}
-      >
-        <TextField
-          label="Group name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          fullWidth
-        />
+          <form onSubmit={handleSubmit}>
+            <Stack spacing={3}>
+              <Box>
+                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                  Group Name
+                </Typography>
+                <TextField
+                  fullWidth
+                  placeholder="e.g. Goa Trip 2026, Apartment 302, Weekly Dinners"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  autoFocus
+                  required
+                />
+              </Box>
 
-        <TextField
-          label="Description (optional)"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          multiline
-          rows={3}
-          fullWidth
-        />
+              <Box sx={{ p: 2, bgcolor: "slate.50", borderRadius: 2, border: "1px solid", borderColor: "slate.200" }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: "slate.700", mb: 0.5 }}>
+                  What happens next?
+                </Typography>
+                <Typography variant="caption" sx={{ color: "slate.500", display: "block" }}>
+                  1. You are automatically added as the group creator.
+                </Typography>
+                <Typography variant="caption" sx={{ color: "slate.500", display: "block" }}>
+                  2. Add your friends or roommates by their registered email address.
+                </Typography>
+                <Typography variant="caption" sx={{ color: "slate.500", display: "block" }}>
+                  3. Start splitting expenses, uploading receipts, and settling debts!
+                </Typography>
+              </Box>
 
-        <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-          <Button type="submit" variant="contained" disabled={loading}>
-            {loading ? <CircularProgress size={20} /> : "Create Group"}
-          </Button>
-
-          <Button variant="outlined" onClick={() => navigate("/groups")} disabled={loading}>
-            Cancel
-          </Button>
-        </Box>
-      </Box>
-    </Container>
+              <Box sx={{ display: "flex", gap: 2, justifyContent: "flex-end", pt: 1 }}>
+                <Button variant="outlined" color="inherit" onClick={() => navigate("/groups")} disabled={loading}>
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <GroupAddIcon />}
+                  disabled={loading || !name.trim()}
+                >
+                  {loading ? "Creating..." : "Create Group"}
+                </Button>
+              </Box>
+            </Stack>
+          </form>
+        </CardContent>
+      </Card>
+    </Box>
   );
 }

@@ -1,31 +1,35 @@
 import React, { useState, useContext } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link as RouterLink } from "react-router-dom";
 import {
-  Container,
   Box,
+  Card,
+  CardContent,
   Typography,
   TextField,
   Button,
   Alert,
+  CircularProgress,
+  Stack,
+  Link,
+  InputAdornment,
+  IconButton,
 } from "@mui/material";
+import {
+  AccountBalanceWallet as WalletIcon,
+  Visibility,
+  VisibilityOff,
+  AutoAwesome as AutoAwesomeIcon,
+} from "@mui/icons-material";
 import api from "../api/axios";
 import { AuthContext } from "../context/AuthContext";
 
-/**
- * Login page
- * POST /api/auth/login
- * Body: { email, password }
- * Expects response: { token: "...", tokenType: "Bearer" }
- *
- * On success: call authContext.login(token) (this saves to localStorage)
- * and navigate to /groups
- */
 export default function Login() {
   const navigate = useNavigate();
   const { login } = useContext(AuthContext);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -33,9 +37,9 @@ export default function Login() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+
     try {
       const resp = await api.post("/auth/login", { email, password });
-      // backend returns { token: "...", tokenType: "Bearer" }
       const token = resp.data?.token;
       if (!token) {
         setError("Login succeeded but no token returned by server.");
@@ -43,25 +47,18 @@ export default function Login() {
         return;
       }
 
-      // save token in context -> AuthContext will persist to localStorage
       login(token);
-
-      // optionally set the default header immediately (interceptor reads localStorage,
-      // but setting defaults helps for immediate subsequent requests)
       api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
-      // navigate to groups page (we'll add this route soon)
-      navigate("/groups");
+      navigate("/dashboard");
     } catch (err) {
-      // Show simple error message
       if (err.response && err.response.data) {
         setError(
           typeof err.response.data === "string"
             ? err.response.data
-            : err.response.data.message || "Invalid credentials"
+            : err.response.data.message || "Invalid email or password."
         );
       } else {
-        setError("Network or server error. Is backend running on :8080?");
+        setError("Network error. Make sure the backend is running on port 8080.");
       }
     } finally {
       setLoading(false);
@@ -69,53 +66,118 @@ export default function Login() {
   };
 
   return (
-    <Container maxWidth="xs">
-      <Box sx={{ mt: 10, display: "flex", flexDirection: "column", gap: 2 }}>
-        <Typography variant="h5" align="center">
-          Login
-        </Typography>
-
-        {error && <Alert severity="error">{error}</Alert>}
-
-        <form onSubmit={handleSubmit}>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <TextField
-              label="Email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              fullWidth
-            />
-
-            <TextField
-              label="Password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              fullWidth
-            />
-
-            <Button
-              type="submit"
-              variant="contained"
-              disabled={loading}
-              fullWidth
+    <Box
+      sx={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        bgcolor: "slate.50",
+        p: 2,
+      }}
+    >
+      <Card sx={{ maxWidth: 440, width: "100%", boxShadow: "0 20px 40px -15px rgba(15, 23, 42, 0.1)" }}>
+        <CardContent sx={{ p: { xs: 3, sm: 4.5 } }}>
+          {/* Logo & Headline */}
+          <Box sx={{ textAlign: "center", mb: 3 }}>
+            <Box
+              sx={{
+                width: 52,
+                height: 52,
+                borderRadius: 3,
+                bgcolor: "primary.main",
+                color: "#fff",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                mb: 1.5,
+                boxShadow: "0 8px 16px -4px rgba(99, 102, 241, 0.4)",
+              }}
             >
-              {loading ? "Logging in…" : "Login"}
-            </Button>
-
-            <Button
-              onClick={() => navigate("/register")}
-              variant="text"
-              fullWidth
-            >
-              Don't have an account? Register
-            </Button>
+              <WalletIcon sx={{ fontSize: 30 }} />
+            </Box>
+            <Typography variant="h5" sx={{ fontWeight: 800, color: "slate.900" }}>
+              Splitwise AI
+            </Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
+              Intelligent group expenses & receipt intelligence
+            </Typography>
           </Box>
-        </form>
-      </Box>
-    </Container>
+
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
+
+          <form onSubmit={handleSubmit}>
+            <Stack spacing={2.5}>
+              <Box>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: "slate.700", display: "block", mb: 0.75 }}>
+                  Email Address
+                </Typography>
+                <TextField
+                  fullWidth
+                  placeholder="you@example.com"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  required
+                />
+              </Box>
+
+              <Box>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: "slate.700", display: "block", mb: 0.75 }}>
+                  Password
+                </Typography>
+                <TextField
+                  fullWidth
+                  placeholder="••••••••"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          size="small"
+                          onClick={() => setShowPassword(!showPassword)}
+                          edge="end"
+                        >
+                          {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Box>
+
+              <Button
+                type="submit"
+                variant="contained"
+                size="large"
+                fullWidth
+                disabled={loading}
+                sx={{ py: 1.2, fontWeight: 700 }}
+              >
+                {loading ? <CircularProgress size={22} color="inherit" /> : "Sign In to Splitwise AI"}
+              </Button>
+            </Stack>
+          </form>
+
+          <Box sx={{ mt: 3, textAlign: "center" }}>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              Don't have an account?{" "}
+              <Link component={RouterLink} to="/register" sx={{ fontWeight: 600, textDecoration: "none" }}>
+                Create one now
+              </Link>
+            </Typography>
+          </Box>
+        </CardContent>
+      </Card>
+    </Box>
   );
 }

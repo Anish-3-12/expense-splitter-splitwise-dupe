@@ -1,278 +1,339 @@
-import React, { useEffect, useState, useContext } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  Container,
   Box,
+  Card,
+  CardContent,
   Typography,
   Button,
   CircularProgress,
   Alert,
   TextField,
   MenuItem,
-  Select,
-  FormControl,
-  InputLabel,
   Grid,
   Paper,
-  List,
-  ListItem,
-  ListItemText,
+  Stack,
+  Breadcrumbs,
+  Link as MuiLink,
+  Divider,
+  InputAdornment,
 } from "@mui/material";
+import {
+  ArrowBack as ArrowBackIcon,
+  AccountBalanceWallet as WalletIcon,
+  CheckCircle as CheckCircleIcon,
+  History as HistoryIcon,
+} from "@mui/icons-material";
 import api from "../api/axios";
-import { AuthContext } from "../context/AuthContext";
+import PageHeader from "../components/PageHeader";
+import EmptyState from "../components/EmptyState";
+import { formatINR } from "../utils/formatters";
 
-/**
- * Settlements page
- * - GET /api/groups/{groupId}/settlements
- * - POST /api/groups/{groupId}/settlements
- *
- * POST body (RecordSettlementRequest):
- * {
- *   fromUserId: Long,
- *   toUserId: Long,
- *   amount: BigDecimal,
- *   currency: String,
- *   note: String
- * }
- */
 export default function Settlements() {
   const { id: groupId } = useParams();
   const navigate = useNavigate();
-  const { isAuthenticated } = useContext(AuthContext);
 
   const [loading, setLoading] = useState(true);
   const [members, setMembers] = useState([]);
   const [settlements, setSettlements] = useState([]);
   const [error, setError] = useState(null);
 
-  // form state
+  // Form
   const [fromUserId, setFromUserId] = useState("");
   const [toUserId, setToUserId] = useState("");
   const [amount, setAmount] = useState("");
-  const [currency, setCurrency] = useState("INR");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(null);
   const [submitError, setSubmitError] = useState(null);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigate("/login");
-      return;
-    }
     fetchAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupId, isAuthenticated]);
+  }, [groupId]);
 
   const fetchAll = async () => {
     setLoading(true);
     setError(null);
     try {
-      // load members
-      let fetchedMembers = [];
-      try {
-        const resp = await api.get(`/groups/${groupId}`);
-        if (resp?.data?.members && Array.isArray(resp.data.members)) {
-          fetchedMembers = resp.data.members;
-        }
-      } catch {}
-      if (fetchedMembers.length === 0) {
-        try {
-          const resp2 = await api.get(`/groups/${groupId}/members`);
-          if (Array.isArray(resp2.data)) fetchedMembers = resp2.data;
-        } catch {}
-      }
-      setMembers(fetchedMembers);
+      const [groupRes, settleRes] = await Promise.all([
+        api.get(`/groups/${groupId}`),
+        api.get(`/groups/${groupId}/settlements`).catch(() => ({ data: [] })),
+      ]);
 
-      // settlements
-      const respS = await api.get(`/groups/${groupId}/settlements`);
-      setSettlements(Array.isArray(respS.data) ? respS.data : []);
+      const fetchedMembers = (groupRes.data?.members || []).map((m) => ({
+        id: m.userId || m.id,
+        name: m.name || m.userName || m.fullName || m.email,
+        email: m.email || "",
+      }));
+
+      setMembers(fetchedMembers);
+      setSettlements(Array.isArray(settleRes.data) ? settleRes.data : []);
     } catch (err) {
       console.error(err);
-      setError("Failed to load data. Is backend running on :8080?");
+      setError("Failed to load settlements data.");
     } finally {
       setLoading(false);
     }
   };
 
-  const displayName = (m) =>
-    m.name ?? m.fullName ?? m.email ?? String(m.id ?? m.userId ?? m);
-
-  const handleSubmit = async (e) => {
+  const handleRecord = async (e) => {
     e.preventDefault();
     setSubmitError(null);
     setSubmitSuccess(null);
 
-    if (!fromUserId || !toUserId) {
-      setSubmitError("Choose both From and To users.");
-      return;
-    }
-    const num = Number(amount);
-    if (!amount || isNaN(num) || num <= 0) {
-      setSubmitError("Enter a valid amount greater than 0.");
-      return;
-    }
-    if (fromUserId === toUserId) {
-      setSubmitError("From and To cannot be the same user.");
+    if (!fromUserId || !toUserId || !amount || Number(amount) <= 0) {
+      setSubmitError("Please fill in valid payer, recipient, and amount.");
       return;
     }
 
-    setSubmitting(true);
+    if (fromUserId === toUserId) {
+      setSubmitError("Payer and recipient cannot be the same member.");
+      return;
+    }
+
     try {
-      const payload = {
+      setSubmitting(true);
+      await api.post(`/groups/${groupId}/settlements`, {
         fromUserId: Number(fromUserId),
         toUserId: Number(toUserId),
-        amount: Number(num),
-        currency: currency || "INR",
-        note: note || undefined,
-      };
+        amount: Number(amount),
+        currency: "INR",
+        note: note.trim() || undefined,
+      });
 
-      await api.post(`/groups/${groupId}/settlements`, payload);
-
-      await fetchAll();
-      setSubmitSuccess("Settlement recorded.");
+      setSubmitSuccess("Settlement recorded successfully!");
       setAmount("");
       setNote("");
-      setTimeout(() => setSubmitSuccess(null), 1200);
+      fetchAll();
     } catch (err) {
-      console.error("Failed to record settlement:", err);
-      if (err.response && err.response.data) {
-        setSubmitError(
-          typeof err.response.data === "string"
-            ? err.response.data
-            : err.response.data.message || "Failed to record settlement"
-        );
-      } else {
-        setSubmitError("Network or server error while recording settlement.");
-      }
+      console.error("Settlement error:", err);
+      setSubmitError(err?.response?.data?.message || "Failed to record settlement.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (loading) {
-    return (
-      <Container sx={{ mt: 6, textAlign: "center" }}>
-        <CircularProgress />
-      </Container>
-    );
-  }
+  const memberName = (id) => {
+    const m = members.find((mem) => mem.id === id);
+    return m ? m.name : `Member #${id}`;
+  };
 
   return (
-    <Container sx={{ mt: 6 }}>
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 3 }}>
-        <Typography variant="h5">Settlements</Typography>
-        <Button variant="text" onClick={() => navigate(`/groups/${groupId}`)}>
-          Back to group
-        </Button>
-      </Box>
+    <Box sx={{ maxWidth: 960, mx: "auto" }}>
+      <Breadcrumbs sx={{ mb: 2 }}>
+        <MuiLink
+          component="button"
+          underline="hover"
+          color="inherit"
+          onClick={() => navigate(`/groups/${groupId}`)}
+          sx={{ display: "flex", alignItems: "center", gap: 0.5, cursor: "pointer" }}
+        >
+          <ArrowBackIcon fontSize="small" /> Back to Group
+        </MuiLink>
+        <Typography color="text.primary">Settlements</Typography>
+      </Breadcrumbs>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      <PageHeader
+        title="Group Settlements"
+        subtitle="Record direct peer-to-peer payments to settle debts and review historical transfers."
+      />
 
-      <Grid container spacing={2}>
-        {/* Record settlement form */}
-        <Grid item xs={12} md={5}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" sx={{ mb: 1 }}>Record settlement</Typography>
-            {submitError && <Alert severity="error" sx={{ mb: 1 }}>{submitError}</Alert>}
-            {submitSuccess && <Alert severity="success" sx={{ mb: 1 }}>{submitSuccess}</Alert>}
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      )}
 
-            <Box component="form" onSubmit={handleSubmit} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <FormControl fullWidth>
-                <InputLabel id="from-label">From (payer)</InputLabel>
-                <Select
-                  labelId="from-label"
-                  value={fromUserId}
-                  label="From (payer)"
-                  onChange={(e) => setFromUserId(e.target.value)}
-                >
-                  {members.map((m) => {
-                    const uid = String(m.id ?? m.userId ?? m.email ?? m);
-                    return <MenuItem key={uid} value={uid}>{displayName(m)}</MenuItem>;
-                  })}
-                </Select>
-              </FormControl>
+      <Grid container spacing={3} sx={{ width: "100%" }}>
+        {/* Record Settlement Card */}
+        <Grid size={{ xs: 12, md: 5 }}>
+          <Card>
+            <CardContent sx={{ p: 3 }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+                Record Direct Settlement
+              </Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary", mb: 2.5 }}>
+                Mark cash or UPI payments made outside the platform to adjust balances.
+              </Typography>
 
-              <FormControl fullWidth>
-                <InputLabel id="to-label">To (receiver)</InputLabel>
-                <Select
-                  labelId="to-label"
-                  value={toUserId}
-                  label="To (receiver)"
-                  onChange={(e) => setToUserId(e.target.value)}
-                >
-                  {members.map((m) => {
-                    const uid = String(m.id ?? m.userId ?? m.email ?? m);
-                    return <MenuItem key={uid} value={uid}>{displayName(m)}</MenuItem>;
-                  })}
-                </Select>
-              </FormControl>
+              {submitError && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {submitError}
+                </Alert>
+              )}
+              {submitSuccess && (
+                <Alert severity="success" sx={{ mb: 2 }}>
+                  {submitSuccess}
+                </Alert>
+              )}
 
-              <TextField
-                label="Amount"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                type="number"
-                inputProps={{ step: "0.01", min: "0" }}
-                required
-              />
+              <form onSubmit={handleRecord}>
+                <Stack spacing={2}>
+                  <Box>
+                    <Typography variant="caption" sx={{ fontWeight: 600, mb: 0.5, display: "block" }}>
+                      Who Paid? (Debtor)
+                    </Typography>
+                    <TextField
+                      select
+                      fullWidth
+                      size="small"
+                      value={fromUserId}
+                      onChange={(e) => setFromUserId(e.target.value)}
+                      required
+                    >
+                      {members.map((m) => (
+                        <MenuItem key={m.id} value={String(m.id)} disabled={String(m.id) === toUserId}>
+                          {m.name} {String(m.id) === toUserId ? "(Selected Recipient)" : ""}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Box>
 
-              <TextField
-                label="Currency"
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                fullWidth
-              />
+                  <Box>
+                    <Typography variant="caption" sx={{ fontWeight: 600, mb: 0.5, display: "block" }}>
+                      Who Received? (Creditor)
+                    </Typography>
+                    <TextField
+                      select
+                      fullWidth
+                      size="small"
+                      value={toUserId}
+                      onChange={(e) => setToUserId(e.target.value)}
+                      required
+                    >
+                      {members.map((m) => (
+                        <MenuItem key={m.id} value={String(m.id)} disabled={String(m.id) === fromUserId}>
+                          {m.name} {String(m.id) === fromUserId ? "(Selected Payer)" : ""}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Box>
 
-              <TextField
-                label="Note (optional)"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                fullWidth
-              />
+                  <Box>
+                    <Typography variant="caption" sx={{ fontWeight: 600, mb: 0.5, display: "block" }}>
+                      Amount (₹)
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      type="number"
+                      placeholder="0.00"
+                      inputProps={{ step: "0.01", min: "0.01" }}
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      InputProps={{
+                        startAdornment: <InputAdornment position="start">₹</InputAdornment>,
+                      }}
+                      required
+                    />
+                  </Box>
 
-              <Box sx={{ display: "flex", gap: 1 }}>
-                <Button type="submit" variant="contained" disabled={submitting}>
-                  {submitting ? "Saving…" : "Record"}
-                </Button>
-                <Button variant="outlined" onClick={() => { setAmount(""); setNote(""); }}>
-                  Clear
-                </Button>
-              </Box>
-            </Box>
-          </Paper>
+                  <Box>
+                    <Typography variant="caption" sx={{ fontWeight: 600, mb: 0.5, display: "block" }}>
+                      Note (Optional)
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      placeholder="e.g. Paid via Google Pay"
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                    />
+                  </Box>
+
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    disabled={submitting || !fromUserId || !toUserId || fromUserId === toUserId || !amount || Number(amount) <= 0}
+                    startIcon={submitting ? <CircularProgress size={18} color="inherit" /> : <WalletIcon />}
+                    sx={{ mt: 1, py: 1 }}
+                  >
+                    {submitting ? "Recording..." : "Record Payment"}
+                  </Button>
+                </Stack>
+              </form>
+            </CardContent>
+          </Card>
         </Grid>
 
-        {/* Settlements list */}
-        <Grid item xs={12} md={7}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" sx={{ mb: 1 }}>Recent settlements</Typography>
-            {settlements.length === 0 ? (
-              <Typography variant="body2">No settlements recorded yet.</Typography>
-            ) : (
-              <List>
-                {settlements.map((s) => {
-                  const sid = s.id ?? s.settlementId ?? s.id;
-                  const from = s.fromUserName ?? s.fromUser?.name ?? s.fromUserId;
-                  const to = s.toUserName ?? s.toUser?.name ?? s.toUserId;
-                  const amt = typeof s.amount === "number" ? s.amount : (s.amount ?? "");
-                  const cur = s.currency ?? "";
-                  const createdAt = s.createdAt ?? s.timestamp ?? "";
+        {/* Settlement History */}
+        <Grid size={{ xs: 12, md: 7 }}>
+          <Card>
+            <CardContent sx={{ p: 3 }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+                Settlement History
+              </Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary", mb: 2.5 }}>
+                Chronological list of all settled balances in this group.
+              </Typography>
 
-                  return (
-                    <ListItem key={String(sid)}>
-                      <ListItemText
-                        primary={`${from} → ${to} — ${amt} ${cur}`}
-                        secondary={createdAt ? String(createdAt) : null}
-                      />
-                    </ListItem>
-                  );
-                })}
-              </List>
-            )}
-          </Paper>
+              {loading ? (
+                <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+                  <CircularProgress />
+                </Box>
+              ) : settlements.length === 0 ? (
+                <EmptyState
+                  icon={HistoryIcon}
+                  title="No settlements recorded yet"
+                  description="When members pay each other back, records will appear here."
+                />
+              ) : (
+                <Stack spacing={1.5}>
+                  {settlements.map((s) => {
+                    const payer = s.fromUserName || memberName(s.fromUserId);
+                    const payee = s.toUserName || memberName(s.toUserId);
+                    const amt = Number(s.amount || 0);
+
+                    return (
+                      <Paper
+                        key={s.id}
+                        variant="outlined"
+                        sx={{
+                          p: 2,
+                          borderRadius: 2,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                          <Box
+                            sx={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: 2,
+                              bgcolor: "emerald.50",
+                              color: "emerald.600",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            <CheckCircleIcon fontSize="small" />
+                          </Box>
+                          <Box>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              <strong>{payer}</strong> paid <strong>{payee}</strong>
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                              {s.note ? `${s.note} • ` : ""}
+                              {s.createdAt ? new Date(s.createdAt).toLocaleDateString() : ""}
+                            </Typography>
+                          </Box>
+                        </Box>
+
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "emerald.700" }}>
+                          {formatINR(amt)}
+                        </Typography>
+                      </Paper>
+                    );
+                  })}
+                </Stack>
+              )}
+            </CardContent>
+          </Card>
         </Grid>
       </Grid>
-    </Container>
+    </Box>
   );
 }

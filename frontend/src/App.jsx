@@ -1,167 +1,169 @@
 import React, { useContext } from "react";
-import {
-  BrowserRouter,
-  Routes,
-  Route,
-  Navigate,
-  Link,
-  useNavigate,
-} from "react-router-dom";
-import { AuthContext } from "./context/AuthContext.jsx";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { ThemeProvider, CssBaseline, Box, CircularProgress } from "@mui/material";
+import theme from "./theme/theme";
+import { AuthProvider, AuthContext } from "./context/AuthContext";
 
-import Login from "./pages/Login.jsx";
-import Register from "./pages/Register.jsx";
-import Groups from "./pages/Groups.jsx";
-import CreateGroup from "./pages/CreateGroup.jsx";
-import GroupDetails from "./pages/GroupDetails.jsx";
-import AddExpense from "./pages/AddExpense.jsx";
-import Settlements from "./pages/Settlements.jsx";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Dashboard from "./pages/Dashboard";
+import Groups from "./pages/Groups";
+import CreateGroup from "./pages/CreateGroup";
+import GroupDetails from "./pages/GroupDetails";
+import AddExpense from "./pages/AddExpense";
+import Settlements from "./pages/Settlements";
+import ReceiptScanner from "./pages/ReceiptScanner";
+import Analytics from "./pages/Analytics";
 
-import { AppBar, Toolbar, Typography, Button, Box } from "@mui/material";
+import AppLayout from "./components/AppLayout";
 
 /**
- * ProtectedRoute: render children only when authenticated, otherwise redirect to /login
+ * ProtectedRoute: checks if user is authenticated.
+ * While loading auth profile, shows full-screen spinner.
+ * Once verified, renders content wrapped inside AppLayout.
  */
 function ProtectedRoute({ children }) {
-  const { isAuthenticated } = useContext(AuthContext);
+  const { isAuthenticated, loading } = useContext(AuthContext);
+
+  if (loading) {
+    return (
+      <Box
+        sx={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          bgcolor: "background.default",
+        }}
+      >
+        <CircularProgress size={40} />
+      </Box>
+    );
+  }
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
+
+  return <AppLayout>{children}</AppLayout>;
+}
+
+/**
+ * PublicRoute: if already authenticated, redirect to /dashboard
+ */
+function PublicRoute({ children }) {
+  const { isAuthenticated, loading } = useContext(AuthContext);
+
+  if (loading) {
+    return null;
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   return children;
-}
-
-/**
- * TopNav component
- */
-function TopNavInner() {
-  const { isAuthenticated, logout, user } = useContext(AuthContext);
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
-
-  return (
-    <AppBar position="static">
-      <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
-        {/* Left side: logo + nav links */}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <Typography
-            variant="h6"
-            component={Link}
-            to="/"
-            sx={{ color: "inherit", textDecoration: "none" }}
-          >
-            Splitwise-dupe
-          </Typography>
-
-          <Button color="inherit" component={Link} to="/groups">
-            Groups
-          </Button>
-        </Box>
-
-        {/* Right side: user info + auth buttons */}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          {isAuthenticated && user && (
-            <Typography variant="body1" sx={{ color: "inherit" }}>
-              {`Hi, ${user.name}`}
-            </Typography>
-          )}
-
-          {!isAuthenticated ? (
-            <>
-              <Button color="inherit" component={Link} to="/login">
-                Login
-              </Button>
-              <Button color="inherit" component={Link} to="/register">
-                Register
-              </Button>
-            </>
-          ) : (
-            <Button color="inherit" onClick={handleLogout}>
-              Logout
-            </Button>
-          )}
-        </Box>
-      </Toolbar>
-    </AppBar>
-  );
-}
-
-/**
- * TopNav wrapper
- */
-function TopNav() {
-  return <TopNavInner />;
 }
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <TopNav />
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* Public routes */}
+            <Route
+              path="/login"
+              element={
+                <PublicRoute>
+                  <Login />
+                </PublicRoute>
+              }
+            />
+            <Route
+              path="/register"
+              element={
+                <PublicRoute>
+                  <Register />
+                </PublicRoute>
+              }
+            />
 
-      <main className="app-root">
-        <div className="app-content">
-          <div className="app-container">
-            <Routes>
-              <Route path="/" element={<Navigate to="/groups" replace />} />
+            {/* Protected dashboard and groups routes */}
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/groups"
+              element={
+                <ProtectedRoute>
+                  <Groups />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/groups/create"
+              element={
+                <ProtectedRoute>
+                  <CreateGroup />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/groups/:id"
+              element={
+                <ProtectedRoute>
+                  <GroupDetails />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/groups/:id/add-expense"
+              element={
+                <ProtectedRoute>
+                  <AddExpense />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/groups/:id/settlements"
+              element={
+                <ProtectedRoute>
+                  <Settlements />
+                </ProtectedRoute>
+              }
+            />
 
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
+            {/* AI Capabilities */}
+            <Route
+              path="/receipt-scanner"
+              element={
+                <ProtectedRoute>
+                  <ReceiptScanner />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/analytics"
+              element={
+                <ProtectedRoute>
+                  <Analytics />
+                </ProtectedRoute>
+              }
+            />
 
-              {/* Protected routes */}
-              <Route
-                path="/groups"
-                element={
-                  <ProtectedRoute>
-                    <Groups />
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route
-                path="/groups/create"
-                element={
-                  <ProtectedRoute>
-                    <CreateGroup />
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route
-                path="/groups/:id"
-                element={
-                  <ProtectedRoute>
-                    <GroupDetails />
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route
-                path="/groups/:id/add-expense"
-                element={
-                  <ProtectedRoute>
-                    <AddExpense />
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route
-                path="/groups/:id/settlements"
-                element={
-                  <ProtectedRoute>
-                    <Settlements />
-                  </ProtectedRoute>
-                }
-              />
-
-              {/* Catch-all */}
-              <Route path="*" element={<Navigate to="/groups" replace />} />
-            </Routes>
-          </div>
-        </div>
-      </main>
-    </BrowserRouter>
+            {/* Default redirects */}
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
