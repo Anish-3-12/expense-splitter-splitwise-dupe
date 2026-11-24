@@ -1,0 +1,60 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node & Frontend Build
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Java / Maven Build
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment & Local Secrets
+.env
+.env.*.local
+!.env.example
+
+# IDE & Editor Configs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# File Uploads & Local Storage
+expense-splitter-backend/uploads/receipts/*
+!expense-splitter-backend/uploads/receipts/.gitkeep
+uploads/
+
+# Intermediate QA Review Artifacts & Logs
+docs/product-review/
+*.log
+
+# OS specific files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
