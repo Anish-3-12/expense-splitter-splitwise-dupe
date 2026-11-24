@@ -48,7 +48,7 @@ public class GroupController {
     public ResponseEntity<?> createGroup(@RequestBody GroupDto dto, @CurrentUser User user) {
         try {
             Group created = groupService.createGroup(dto.getName(), user);
-            return ResponseEntity.ok(new GroupDto(created.getId(), created.getName(), created.getOwner().getId()));
+            return ResponseEntity.ok(new GroupDto(created.getId(), created.getName(), created.getOwner().getId(), 1));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
@@ -61,7 +61,10 @@ public class GroupController {
     public ResponseEntity<?> listGroups(@CurrentUser User user) {
         List<Group> groups = groupService.listGroupsForUser(user);
         List<GroupDto> result = groups.stream()
-                .map(g -> new GroupDto(g.getId(), g.getName(), g.getOwner().getId()))
+                .map(g -> {
+                    int count = groupService.getGroupMemberCount(g.getId());
+                    return new GroupDto(g.getId(), g.getName(), g.getOwner().getId(), count);
+                })
                 .collect(Collectors.toList());
         return ResponseEntity.ok(result);
     }

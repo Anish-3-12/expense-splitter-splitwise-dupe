@@ -49,6 +49,12 @@ public class ExpenseService {
     @Autowired
     private com.example.expensesplitter.repository.SettlementRepository settlementRepository;
 
+    @Autowired
+    private com.example.expensesplitter.repository.ExpenseCategoryRepository categoryRepository;
+
+    @Autowired(required = false)
+    private com.example.expensesplitter.client.AiServiceClient aiServiceClient;
+
     // ---------------- CREATE EXPENSE ----------------
     @Transactional
     public Expense createExpense(Long groupId, User creator, CreateExpenseRequest req) {
@@ -89,7 +95,24 @@ public class ExpenseService {
 
         switch (splitType) {
             case "EQUAL":
-                allocationInCents = SplitUtil.allocateEqual(totalCents, memberUserIds);
+                List<Long> equalParticipants = memberUserIds;
+                if (req.getShares() != null && !req.getShares().isEmpty()) {
+                    equalParticipants = req.getShares().stream()
+                            .map(CreateExpenseRequest.ShareLine::getUserId)
+                            .filter(Objects::nonNull)
+                            .distinct()
+                            .collect(Collectors.toList());
+                    if (equalParticipants.isEmpty()) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one participant required for EQUAL split");
+                    }
+                    for (Long participantId : equalParticipants) {
+                        if (!memberUserIds.contains(participantId)) {
+                            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                    "Participant " + participantId + " is not a member of the group");
+                        }
+                    }
+                }
+                allocationInCents = SplitUtil.allocateEqual(totalCents, equalParticipants);
                 break;
 
             case "PERCENT":
@@ -102,15 +125,17 @@ public class ExpenseService {
                         throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                                 "Each share line must include userId and percent for PERCENT split");
                     }
+                    if (!memberUserIds.contains(sl.getUserId())) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                "User " + sl.getUserId() + " is not a member of the group");
+                    }
                     percentMap.put(sl.getUserId(), sl.getPercent());
                 }
-                BigDecimal totalPercent = percentMap.values().stream()
-                        .reduce(BigDecimal.ZERO, BigDecimal::add)
-                        .setScale(2, RoundingMode.HALF_EVEN);
-                if (totalPercent.compareTo(new BigDecimal("100.00")) != 0) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Percents must sum to exactly 100.00");
+                try {
+                    allocationInCents = SplitUtil.allocatePercent(totalCents, percentMap);
+                } catch (IllegalArgumentException ex) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage());
                 }
-                allocationInCents = SplitUtil.allocatePercent(totalCents, percentMap);
                 break;
 
             case "CUSTOM":
@@ -123,9 +148,17 @@ public class ExpenseService {
                         throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                                 "Each share line must include userId and amount for CUSTOM split");
                     }
+                    if (!memberUserIds.contains(sl.getUserId())) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                "User " + sl.getUserId() + " is not a member of the group");
+                    }
                     amountMap.put(sl.getUserId(), sl.getAmount().setScale(2, RoundingMode.HALF_EVEN));
                 }
-                allocationInCents = SplitUtil.allocateCustom(totalCents, amountMap);
+                try {
+                    allocationInCents = SplitUtil.allocateCustom(totalCents, amountMap);
+                } catch (IllegalArgumentException ex) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage());
+                }
                 break;
 
             default:
@@ -137,9 +170,38 @@ public class ExpenseService {
         expense.setCreatedBy(creator);
         expense.setPayer(payer);
         expense.setAmount(amount);
-        expense.setCurrency(req.getCurrency() == null ? "INR" : req.getCurrency());
+        String currency = req.getCurrency() == null ? "INR" : req.getCurrency().trim();
+        if (!"INR".equalsIgnoreCase(currency)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported currency: '" + currency + "'. The expense ledger only supports INR (₹).");
+        }
+        expense.setCurrency("INR");
         expense.setSplitType(splitType);
         expense.setNote(req.getNote());
+
+        if (req.getCategoryId() != null && categoryRepository != null) {
+            categoryRepository.findById(req.getCategoryId()).ifPresent(expense::setCategory);
+        } else if (categoryRepository != null && aiServiceClient != null) {
+            try {
+                Map<String, Object> catRes = aiServiceClient.categorizeExpense(null, req.getNote(), req.getAmount());
+                String catName = (String) catRes.get("category");
+                if (catName != null) {
+                    categoryRepository.findByNameIgnoreCase(catName).ifPresent(expense::setCategory);
+                }
+            } catch (Exception ex) {
+                log.info("Auto-categorization error: {}", ex.getMessage());
+            }
+        }
+
+        if (req.getItems() != null && !req.getItems().isEmpty()) {
+            for (CreateExpenseRequest.ItemLine il : req.getItems()) {
+                com.example.expensesplitter.entity.ExpenseItem ei = new com.example.expensesplitter.entity.ExpenseItem();
+                ei.setDescription(il.getDescription());
+                ei.setQuantity(il.getQuantity() != null ? il.getQuantity() : BigDecimal.ONE);
+                ei.setUnitPrice(il.getUnitPrice() != null ? il.getUnitPrice() : BigDecimal.ZERO);
+                ei.setLineTotal(il.getLineTotal() != null ? il.getLineTotal() : ei.getUnitPrice());
+                expense.addItem(ei);
+            }
+        }
 
         for (Map.Entry<Long, Long> entry : allocationInCents.entrySet()) {
             Long uid = entry.getKey();
@@ -186,10 +248,18 @@ public class ExpenseService {
             dto.setGroupId(e.getGroup().getId());
             dto.setCreatedById(e.getCreatedBy().getId());
             dto.setPayerId(e.getPayer().getId());
+            if (e.getPayer() != null) {
+                dto.setPayerName(e.getPayer().getName());
+            }
             dto.setAmount(e.getAmount());
             dto.setCurrency(e.getCurrency());
             dto.setSplitType(e.getSplitType());
             dto.setNote(e.getNote());
+            if (e.getCategory() != null) {
+                dto.setCategoryId(e.getCategory().getId());
+                dto.setCategoryName(e.getCategory().getName());
+                dto.setCategoryIcon(e.getCategory().getIcon());
+            }
             dto.setCreatedAt(e.getCreatedAt());
 
             List<com.example.expensesplitter.dto.ExpenseDto.ShareDto> shareDtos = new ArrayList<>();
@@ -245,7 +315,8 @@ public class ExpenseService {
             }
         }
 
-        // Settlements
+        // Settlements: when 'fromUser' pays 'toUser', fromUser's debt decreases (add to net balance)
+        // and toUser's credit decreases (subtract from net balance).
         List<com.example.expensesplitter.entity.Settlement> settlements =
                 Optional.ofNullable(settlementRepository.findByGroup_Id(groupId)).orElse(Collections.emptyList());
         for (com.example.expensesplitter.entity.Settlement s : settlements) {
@@ -253,8 +324,8 @@ public class ExpenseService {
             Long from = s.getFromUser().getId();
             Long to = s.getToUser().getId();
             BigDecimal amt = s.getAmount() != null ? s.getAmount() : BigDecimal.ZERO;
-            balances.put(from, balances.getOrDefault(from, BigDecimal.ZERO).subtract(amt));
-            balances.put(to, balances.getOrDefault(to, BigDecimal.ZERO).add(amt));
+            balances.put(from, balances.getOrDefault(from, BigDecimal.ZERO).add(amt));
+            balances.put(to, balances.getOrDefault(to, BigDecimal.ZERO).subtract(amt));
         }
 
         List<BalanceDto> result = new ArrayList<>();

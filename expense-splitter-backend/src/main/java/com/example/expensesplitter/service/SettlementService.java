@@ -65,7 +65,11 @@ public class SettlementService {
         s.setFromUser(from);
         s.setToUser(to);
         s.setAmount(req.getAmount().setScale(2, java.math.RoundingMode.HALF_EVEN));
-        s.setCurrency(req.getCurrency() == null ? "INR" : req.getCurrency());
+        String currency = req.getCurrency() == null ? "INR" : req.getCurrency().trim();
+        if (!"INR".equalsIgnoreCase(currency)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported settlement currency: '" + currency + "'. Ledger only supports INR (₹).");
+        }
+        s.setCurrency("INR");
         s.setNote(req.getNote());
         s.setRecordedBy(recorder);
 

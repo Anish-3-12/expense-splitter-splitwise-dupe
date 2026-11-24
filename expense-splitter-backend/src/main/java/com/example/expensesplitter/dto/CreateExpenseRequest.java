@@ -26,7 +26,30 @@ public class CreateExpenseRequest {
     @Size(max = 1000, message = "Note must not exceed 1000 characters")
     private String note;
 
+    private Long categoryId;
+
     private List<ShareLine> shares; // For PERCENT or CUSTOM: userId + percent or amount
+
+    private List<ItemLine> items; // For itemized split
+
+    public static class ItemLine {
+        private String description;
+        private BigDecimal quantity;
+        private BigDecimal unitPrice;
+        private BigDecimal lineTotal;
+        private List<Long> participantIds;
+
+        public String getDescription() { return description; }
+        public void setDescription(String description) { this.description = description; }
+        public BigDecimal getQuantity() { return quantity; }
+        public void setQuantity(BigDecimal quantity) { this.quantity = quantity; }
+        public BigDecimal getUnitPrice() { return unitPrice; }
+        public void setUnitPrice(BigDecimal unitPrice) { this.unitPrice = unitPrice; }
+        public BigDecimal getLineTotal() { return lineTotal; }
+        public void setLineTotal(BigDecimal lineTotal) { this.lineTotal = lineTotal; }
+        public List<Long> getParticipantIds() { return participantIds; }
+        public void setParticipantIds(List<Long> participantIds) { this.participantIds = participantIds; }
+    }
 
     public static class ShareLine {
         @NotNull(message = "UserId is required in each share line")
@@ -62,6 +85,12 @@ public class CreateExpenseRequest {
     public String getNote() { return note; }
     public void setNote(String note) { this.note = note; }
 
+    public Long getCategoryId() { return categoryId; }
+    public void setCategoryId(Long categoryId) { this.categoryId = categoryId; }
+
     public List<ShareLine> getShares() { return shares; }
     public void setShares(List<ShareLine> shares) { this.shares = shares; }
+
+    public List<ItemLine> getItems() { return items; }
+    public void setItems(List<ItemLine> items) { this.items = items; }
 }
