@@ -8,7 +8,7 @@
 [![Database](https://img.shields.io/badge/Database-MySQL%208.0-4479A1.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-lightgrey.svg)]()
 
-Splitwise AI is a production-grade, full-stack expense sharing and debt resolution platform. It combines a deterministic, integer-minor financial engine with local computer vision (OpenCV + Tesseract OCR) and local large language models (Ollama `qwen2.5:1.5b`) to automate receipt itemization and conversational expense splitting.
+Splitwise AI is a production-grade, full-stack expense sharing and debt resolution platform. Originally designed as a full-stack Splitwise-style expense manager, the application has been engineered into an autonomous AI-driven platform combining a deterministic, integer-minor financial engine with local computer vision (OpenCV + Tesseract OCR) and local large language models (Ollama `qwen2.5:1.5b`) to automate receipt itemization and conversational expense splitting.
 
 ---
 
